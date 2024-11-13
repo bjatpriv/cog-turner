@@ -12,34 +12,43 @@ export function useRecords(style: string | null) {
       return
     }
 
+    let isMounted = true
+
     async function fetchRecords() {
       setIsLoading(true)
       setError(null)
 
       try {
-        const response = await fetch(`/api/records?style=${encodeURIComponent(style)}`)
-        const data = await response.json()
+        if (typeof style === 'string') {
+          const response = await fetch(`/api/records?style=${encodeURIComponent(style)}`)
+          const data = await response.json()
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to fetch records')
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to fetch records')
+          }
+
+          if (isMounted) {
+            setRecords(data)
+          }
         }
-
-        if (!Array.isArray(data)) {
-          console.error('Unexpected response:', data)
-          throw new Error('Invalid response format')
-        }
-
-        setRecords(data)
       } catch (err) {
-        console.error('Error fetching records:', err)
-        setError(err instanceof Error ? err.message : 'An error occurred')
-        setRecords([])
+        if (isMounted) {
+          console.error('Error fetching records:', err)
+          setError(err instanceof Error ? err.message : 'An error occurred')
+          setRecords([])
+        }
       } finally {
-        setIsLoading(false)
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
     fetchRecords()
+
+    return () => {
+      isMounted = false
+    }
   }, [style])
 
   return { records, isLoading, error }
