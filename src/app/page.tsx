@@ -48,9 +48,9 @@ export default function MusicRecordsGrid() {
     return `€${price.toFixed(2)}`
   }
 
-  // Helper function to format rating
+  // Updated helper function to format rating
   const formatRating = (rating: number | null): string => {
-    if (rating === null || typeof rating !== 'number') return 'N/A'
+    if (rating === null || typeof rating !== 'number') return '--/5'
     return `${rating.toFixed(1)}/5`
   }
 
