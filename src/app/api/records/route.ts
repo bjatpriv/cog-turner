@@ -5,6 +5,7 @@ const DISCOGS_TOKEN = process.env.DISCOGS_TOKEN
 const CACHE_KEY = 'daily_records'
 const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours
 const RATE_LIMIT_DELAY = 1000 // 1 second delay between requests
+const MAX_RETRIES = 5 // Maximum number of retries for rate limiting
 
 type CacheData = {
   timestamp: number;
@@ -44,27 +45,27 @@ async function safeJsonParse(response: Response) {
 }
 
 // Helper function to handle rate-limited requests with retry
-async function fetchWithRetry(url: string, options: RequestInit, retries = 3): Promise<Response> {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const response = await fetch(url, options)
-      
-      if (response.status === 429) {
-        // If rate limited, wait longer before retrying
-        const waitTime = (i + 1) * RATE_LIMIT_DELAY
-        console.log(`Rate limited, waiting ${waitTime}ms before retry ${i + 1}`)
+async function fetchWithRetry(url: string, options: RequestInit, retries = 0): Promise<Response> {
+  try {
+    const response = await fetch(url, options)
+    
+    if (response.status === 429) { // Rate limit reached
+      if (retries < MAX_RETRIES) {
+        // Wait longer before retrying
+        const waitTime = (retries + 1) * RATE_LIMIT_DELAY
+        console.log(`Rate limited, waiting ${waitTime}ms before retry ${retries + 1}`)
         await delay(waitTime)
-        continue
+        return fetchWithRetry(url, options, retries + 1)
+      } else {
+        throw new Error('Rate limit exceeded')
       }
-
-      return response
-    } catch (error) {
-      if (i === retries - 1) throw error
-      await delay(RATE_LIMIT_DELAY)
     }
-  }
 
-  throw new Error('Rate limit exceeded after retries')
+    return response
+  } catch (error) {
+    console.error('Error in fetchWithRetry:', error)
+    throw error
+  }
 }
 
 async function fetchReleaseDetails(releaseId: number): Promise<DiscogsRelease | null> {
