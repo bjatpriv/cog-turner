@@ -1,4 +1,4 @@
-export type Record = {
+export interface Record {
   id: number;
   artist: string;
   title: string;
@@ -8,7 +8,23 @@ export type Record = {
   youtubeId: string | null;
   lowestPrice: number | null;
   discogsUrl: string;
-  communityRating: number;
+  communityRating: number | null;
   haves: number;
   wants: number;
+}
+
+export interface DiscogsResponse {
+  results: Array<{
+    id: number;
+    title: string;
+    year: number;
+    cover_image: string;
+    community?: {
+      have?: number;
+      want?: number;
+      rating?: {
+        average: number;
+      };
+    };
+  }>;
 } 

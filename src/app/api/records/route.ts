@@ -15,20 +15,20 @@ type CacheData = {
 const cache: { [key: string]: CacheData } = {}
 
 // Helper function to create basic record object
-function createBasicRecord(item: any): Record {
+function createBasicRecord(item: DiscogsResponse['results'][0]): Record {
   return {
     id: item.id,
     artist: item.title.split(' - ')[0].trim(),
     title: item.title.split(' - ')[1] || item.title,
-    style: item.style,
+    style: style,
     year: item.year || 0,
     image: item.cover_image || '',
     youtubeId: null,
     lowestPrice: null,
     discogsUrl: `https://www.discogs.com/release/${item.id}`,
     communityRating: null,
-    haves: item.community?.have || 0,
-    wants: item.community?.want || 0,
+    haves: item.community?.have ?? 0,
+    wants: item.community?.want ?? 0,
   }
 }
 
