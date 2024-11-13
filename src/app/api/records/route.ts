@@ -36,16 +36,22 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 // Helper function to handle rate-limited requests with retry
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3): Promise<Response> {
   for (let i = 0; i < retries; i++) {
-    const response = await fetch(url, options)
-    
-    if (response.status !== 429) {
-      return response
-    }
+    try {
+      const response = await fetch(url, options)
+      
+      if (response.status === 429) {
+        // If rate limited, wait longer before retrying
+        const waitTime = (i + 1) * RATE_LIMIT_DELAY
+        console.log(`Rate limited, waiting ${waitTime}ms before retry ${i + 1}`)
+        await delay(waitTime)
+        continue
+      }
 
-    // If rate limited, wait longer before retrying
-    const waitTime = (i + 1) * RATE_LIMIT_DELAY
-    console.log(`Rate limited, waiting ${waitTime}ms before retry ${i + 1}`)
-    await delay(waitTime)
+      return response
+    } catch (error) {
+      if (i === retries - 1) throw error
+      await delay(RATE_LIMIT_DELAY)
+    }
   }
 
   throw new Error('Rate limit exceeded after retries')
@@ -68,7 +74,8 @@ async function fetchReleaseDetails(releaseId: number): Promise<DiscogsRelease | 
       return null
     }
 
-    return response.json()
+    const data = await response.json()
+    return data
   } catch (error) {
     console.error(`Error fetching release details for ${releaseId}:`, error)
     return null
@@ -119,8 +126,14 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
       }
     })
 
+    let errorText = ''
+    try {
+      errorText = await response.text()
+    } catch (e) {
+      errorText = 'Could not read error response'
+    }
+
     if (!response.ok) {
-      const errorText = await response.text()
       console.error('Discogs API error:', {
         status: response.status,
         statusText: response.statusText,
@@ -129,7 +142,7 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
       throw new Error(`Discogs API error: ${response.status} ${response.statusText}`)
     }
 
-    const data = await response.json()
+    const data = JSON.parse(errorText)
     
     if (!data.results || !Array.isArray(data.results)) {
       console.error('Unexpected Discogs response:', data)
