@@ -4,6 +4,7 @@ import { Record } from '@/types/records'
 const DISCOGS_TOKEN = process.env.DISCOGS_TOKEN
 const CACHE_KEY = 'daily_records'
 const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours
+const RATE_LIMIT_DELAY = 1000 // 1 second delay between requests
 
 type CacheData = {
   timestamp: number;
@@ -29,28 +30,54 @@ interface DiscogsRelease {
 
 const cache: { [key: string]: CacheData } = {}
 
-async function fetchReleaseDetails(releaseId: number): Promise<DiscogsRelease | null> {
-  const response = await fetch(
-    `https://api.discogs.com/releases/${releaseId}`,
-    {
-      headers: {
-        'Authorization': `Discogs token=${DISCOGS_TOKEN}`,
-        'User-Agent': 'CogTurner/1.0',
-      }
-    }
-  )
+// Helper function to add delay between requests
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-  if (!response.ok) {
-    console.error(`Failed to fetch release details for ${releaseId}:`, response.statusText)
-    return null
+// Helper function to handle rate-limited requests with retry
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    const response = await fetch(url, options)
+    
+    if (response.status !== 429) {
+      return response
+    }
+
+    // If rate limited, wait longer before retrying
+    const waitTime = (i + 1) * RATE_LIMIT_DELAY
+    console.log(`Rate limited, waiting ${waitTime}ms before retry ${i + 1}`)
+    await delay(waitTime)
   }
 
-  return response.json()
+  throw new Error('Rate limit exceeded after retries')
+}
+
+async function fetchReleaseDetails(releaseId: number): Promise<DiscogsRelease | null> {
+  try {
+    const response = await fetchWithRetry(
+      `https://api.discogs.com/releases/${releaseId}`,
+      {
+        headers: {
+          'Authorization': `Discogs token=${DISCOGS_TOKEN}`,
+          'User-Agent': 'CogTurner/1.0',
+        }
+      }
+    )
+
+    if (!response.ok) {
+      console.error(`Failed to fetch release details for ${releaseId}:`, response.statusText)
+      return null
+    }
+
+    return response.json()
+  } catch (error) {
+    console.error(`Error fetching release details for ${releaseId}:`, error)
+    return null
+  }
 }
 
 async function fetchMarketplaceListings(releaseId: number): Promise<number | null> {
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `https://api.discogs.com/marketplace/listings/release/${releaseId}?sort=price&sort_order=asc&limit=1`,
       {
         headers: {
@@ -66,7 +93,6 @@ async function fetchMarketplaceListings(releaseId: number): Promise<number | nul
     }
 
     const data = await response.json()
-    // Get the price from the first (cheapest) listing if available
     if (data.listings && data.listings.length > 0) {
       return data.listings[0].price.value
     }
@@ -86,7 +112,7 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
   console.log('Fetching from Discogs:', url)
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       headers: {
         'Authorization': `Discogs token=${DISCOGS_TOKEN}`,
         'User-Agent': 'CogTurner/1.0',
@@ -115,31 +141,32 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
       .sort(() => 0.5 - Math.random())
       .slice(0, 20)
 
-    // Fetch detailed information for each record
-    const recordsWithDetails = await Promise.all(
-      shuffled.map(async (item: DiscogsRelease) => {
-        // Fetch both release details and marketplace listings in parallel
-        const [details, lowestPrice] = await Promise.all([
-          fetchReleaseDetails(item.id),
-          fetchMarketplaceListings(item.id)
-        ])
-        
-        return {
-          id: item.id,
-          artist: item.title.split(' - ')[0],
-          title: item.title.split(' - ')[1] || item.title,
-          style: style,
-          year: item.year || 0,
-          image: item.cover_image || '',
-          youtubeId: details?.videos?.[0]?.uri.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)?.[1] || null,
-          lowestPrice,
-          discogsUrl: `https://www.discogs.com/release/${item.id}`,
-          communityRating: details?.community?.rating?.average || 0,
-          haves: details?.community?.have || item.community?.have || 0,
-          wants: details?.community?.want || item.community?.want || 0,
-        }
+    // Process records sequentially to avoid rate limiting
+    const recordsWithDetails = []
+    for (const item of shuffled) {
+      // Add delay between each record processing
+      await delay(RATE_LIMIT_DELAY)
+
+      const [details, lowestPrice] = await Promise.all([
+        fetchReleaseDetails(item.id),
+        fetchMarketplaceListings(item.id)
+      ])
+      
+      recordsWithDetails.push({
+        id: item.id,
+        artist: item.title.split(' - ')[0],
+        title: item.title.split(' - ')[1] || item.title,
+        style: style,
+        year: item.year || 0,
+        image: item.cover_image || '',
+        youtubeId: details?.videos?.[0]?.uri.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)?.[1] || null,
+        lowestPrice,
+        discogsUrl: `https://www.discogs.com/release/${item.id}`,
+        communityRating: details?.community?.rating?.average || 0,
+        haves: details?.community?.have || item.community?.have || 0,
+        wants: details?.community?.want || item.community?.want || 0,
       })
-    )
+    }
 
     return recordsWithDetails
   } catch (error) {
