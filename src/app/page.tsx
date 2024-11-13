@@ -1,101 +1,233 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import React from 'react'
+import { useState, useMemo } from 'react'
+import { Card, CardContent } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Youtube, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react"
+import Image from 'next/image'
+import Link from 'next/link'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Record } from '@/types/records'
+import { useRecords } from '@/hooks/useRecords'
+
+const electronicStyles = [
+  'House', 'Techno', 'Experimental', 'Ambient', 'Synth-pop', 'Electro', 
+  'Trance', 'Downtempo', 'Disco', 'Deep House', 'Tech House'
+]
+
+export default function MusicRecordsGrid() {
+  const [selectedStyle, setSelectedStyle] = useState<string | null>(null)
+  const [selectedRecordIndex, setSelectedRecordIndex] = useState<number | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  
+  const { records, isLoading, error } = useRecords(selectedStyle)
+
+  const handleCardClick = (index: number) => {
+    setSelectedRecordIndex(index)
+    setIsModalOpen(true)
+  }
+
+  const handlePrevious = () => {
+    setSelectedRecordIndex((prev) => (prev === null || prev === 0) ? records.length - 1 : prev - 1)
+  }
+
+  const handleNext = () => {
+    setSelectedRecordIndex((prev) => (prev === null || prev === records.length - 1) ? 0 : prev + 1)
+  }
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="container mx-auto p-4 pb-12">
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Cog Turner</h1>
+        <p className="text-lg text-gray-600 mb-1">
+          A dispatch of records you may never have heard before, refreshed daily.
+        </p>
+        <p className="text-xs text-gray-400 italic">
+          <Link 
+            href="https://www.discogs.com" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
+            Data provided by Discogs
+          </Link>
+        </p>
+      </header>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <Select onValueChange={setSelectedStyle} value={selectedStyle || undefined}>
+        <SelectTrigger className="w-[180px] mb-4">
+          <SelectValue placeholder="Select Style" />
+        </SelectTrigger>
+        <SelectContent>
+          {electronicStyles.map((style) => (
+            <SelectItem key={style} value={style}>{style}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {isLoading && (
+        <div className="text-center py-8">
+          <p className="text-gray-500">Loading records...</p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+      )}
+
+      {error && (
+        <div className="text-center py-8">
+          <p className="text-red-500">{error}</p>
+        </div>
+      )}
+
+      {!selectedStyle && (
+        <p className="text-center text-gray-500 mt-8">Please select a style to view records.</p>
+      )}
+
+      {selectedStyle && !isLoading && !error && records.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          {records.map((record, index) => (
+            <Card 
+              key={record.id} 
+              className="overflow-hidden group cursor-pointer"
+              onClick={() => handleCardClick(index)}
+            >
+              <CardContent className="p-0 relative">
+                <Image
+                  src={record.image}
+                  alt={record.title}
+                  width={200}
+                  height={200}
+                  className="w-full h-auto"
+                />
+                <div className="p-2">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-xs font-semibold truncate">{record.artist}</h2>
+                      <p className="text-xs text-gray-600 truncate">{record.title}</p>
+                      <p className="text-[10px] text-gray-500">{record.year} • {record.style}</p>
+                      {record.lowestPrice && (
+                        <p className="text-[10px] text-gray-500">From €{record.lowestPrice.toFixed(2)}</p>
+                      )}
+                    </div>
+                    {record.youtubeId && (
+                      <Youtube className="w-6 h-6 text-black" />
+                    )}
+                  </div>
+                </div>
+                <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity" aria-hidden="true" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          {selectedRecordIndex !== null && records[selectedRecordIndex] && (
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="icon"
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-10"
+                onClick={handlePrevious}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10"
+                onClick={handleNext}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <div className="p-1">
+                <div className="flex flex-col gap-6">
+                  <div>
+                    <DialogTitle className="text-xl font-bold">{records[selectedRecordIndex].title}</DialogTitle>
+                    <DialogDescription className="text-gray-500 mt-1">{records[selectedRecordIndex].artist}</DialogDescription>
+                  </div>
+                  <div className="flex gap-6">
+                    <Image
+                      src={records[selectedRecordIndex].image}
+                      alt={records[selectedRecordIndex].title}
+                      width={150}
+                      height={150}
+                      className="w-[150px] h-[150px] rounded-lg"
+                    />
+                    <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      <div>
+                        <p className="font-semibold text-gray-500">Style:</p>
+                        <p>{records[selectedRecordIndex].style}</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-500">Year:</p>
+                        <p>{records[selectedRecordIndex].year}</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-500">Price:</p>
+                        <p>{records[selectedRecordIndex].lowestPrice ? `€${records[selectedRecordIndex].lowestPrice.toFixed(2)}` : 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-500">Rating:</p>
+                        <p>{records[selectedRecordIndex].communityRating.toFixed(1)}/5</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-500">Haves:</p>
+                        <p>{records[selectedRecordIndex].haves}</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-500">Wants:</p>
+                        <p>{records[selectedRecordIndex].wants}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {records[selectedRecordIndex].youtubeId && (
+                    <div className="w-full max-w-[400px] ml-0 aspect-video bg-muted rounded-lg flex items-center justify-center">
+                      <iframe
+                        width="100%"
+                        height="100%"
+                        src={`https://www.youtube.com/embed/${records[selectedRecordIndex].youtubeId}`}
+                        title={`YouTube video for ${records[selectedRecordIndex].title}`}
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      ></iframe>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button className="flex-1" variant="default" asChild>
+                      <Link href={records[selectedRecordIndex].discogsUrl} target="_blank" rel="noopener noreferrer">
+                        View on Discogs
+                      </Link>
+                    </Button>
+                    {records[selectedRecordIndex].youtubeId && (
+                      <Button className="flex-1" variant="default" asChild>
+                        <Link href={`https://www.youtube.com/watch?v=${records[selectedRecordIndex].youtubeId}`} target="_blank" rel="noopener noreferrer">
+                          Watch on YouTube
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <footer className="mt-8 text-center text-sm text-gray-500">
+        <p>
+          This application uses Discogs' API but is not affiliated with, sponsored or endorsed by Discogs. 'Discogs' is a trademark of Zink Media, LLC.
+        </p>
       </footer>
     </div>
-  );
+  )
 }
