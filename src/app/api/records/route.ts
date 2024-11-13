@@ -10,9 +10,23 @@ type CacheData = {
   records: Record[];
 }
 
-let cache: { [key: string]: CacheData } = {}
+interface DiscogsResult {
+  id: number;
+  title: string;
+  year: number;
+  cover_image: string;
+  community?: {
+    rating?: {
+      average: number;
+    };
+    have: number;
+    want: number;
+  };
+}
 
-async function fetchReleaseDetails(releaseId: number): Promise<any> {
+const cache: { [key: string]: CacheData } = {}
+
+async function fetchReleaseDetails(releaseId: number): Promise<Record | null> {
   const response = await fetch(
     `https://api.discogs.com/releases/${releaseId}`,
     {

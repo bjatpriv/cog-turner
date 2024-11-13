@@ -4,19 +4,16 @@ import React from 'react'
 import { useState } from 'react'
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Youtube, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react"
+import { Youtube, ChevronLeft, ChevronRight } from "lucide-react"
 import Image from 'next/image'
 import Link from 'next/link'
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogClose,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Record } from '@/types/records'
 import { useRecords } from '@/hooks/useRecords'
 
 const electronicStyles = [
@@ -239,7 +236,7 @@ export default function MusicRecordsGrid() {
 
       <footer className="mt-8 text-center text-sm text-gray-500">
         <p>
-          This application uses Discogs' API but is not affiliated with, sponsored or endorsed by Discogs. 'Discogs' is a trademark of Zink Media, LLC.
+          This application uses Discogs&apos; API but is not affiliated with, sponsored or endorsed by Discogs. &apos;Discogs&apos; is a trademark of Zink Media, LLC.
         </p>
       </footer>
     </div>
