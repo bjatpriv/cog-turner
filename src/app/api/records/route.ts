@@ -126,12 +126,7 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
       }
     })
 
-    let errorText = ''
-    try {
-      errorText = await response.text()
-    } catch (e) {
-      errorText = 'Could not read error response'
-    }
+    const errorText = await response.text()
 
     if (!response.ok) {
       console.error('Discogs API error:', {
@@ -142,7 +137,7 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
       throw new Error(`Discogs API error: ${response.status} ${response.statusText}`)
     }
 
-    const data = JSON.parse(errorText)
+    const data = await response.json()
     
     if (!data.results || !Array.isArray(data.results)) {
       console.error('Unexpected Discogs response:', data)
