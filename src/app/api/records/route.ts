@@ -126,9 +126,8 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
       }
     })
 
-    const errorText = await response.text()
-
     if (!response.ok) {
+      const errorText = await response.text()
       console.error('Discogs API error:', {
         status: response.status,
         statusText: response.statusText,
