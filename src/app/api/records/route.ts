@@ -70,79 +70,24 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 0): P
   }
 }
 
-async function fetchReleaseDetails(releaseId: number): Promise<DiscogsRelease | null> {
-  try {
-    const response = await fetchWithRetry(
-      `https://api.discogs.com/releases/${releaseId}`,
-      {
-        headers: {
-          'Authorization': `Discogs token=${DISCOGS_TOKEN}`,
-          'User-Agent': 'CogTurner/1.0',
-        }
-      }
-    )
-
-    if (!response.ok) {
-      return null
-    }
-
-    const data = await safeJsonParse(response)
-    if (!data) {
-      return null
-    }
-
-    return data
-  } catch (error) {
-    console.error(`Error fetching release details for ${releaseId}:`, error)
-    return null
-  }
-}
-
-async function fetchMarketplaceListings(releaseId: number): Promise<number | null> {
-  try {
-    const response = await fetchWithRetry(
-      `https://api.discogs.com/marketplace/listings/release/${releaseId}?sort=price&sort_order=asc&limit=1`,
-      {
-        headers: {
-          'Authorization': `Discogs token=${DISCOGS_TOKEN}`,
-          'User-Agent': 'CogTurner/1.0',
-        }
-      }
-    )
-
-    if (!response.ok) {
-      return null
-    }
-
-    const data = await safeJsonParse(response)
-    if (!data?.listings?.length) {
-      return null
-    }
-
-    return data.listings[0].price.value || null
-  } catch (error) {
-    console.error(`Error fetching marketplace listings for ${releaseId}:`, error)
-    return null
-  }
-}
-
 async function searchDiscogsRecords(style: string): Promise<Record[]> {
   if (!DISCOGS_TOKEN) {
     throw new Error('Discogs token is not configured')
   }
 
-  const url = `https://api.discogs.com/database/search?style=${encodeURIComponent(style)}&format=vinyl&per_page=100`
-
   try {
-    const response = await fetchWithRetry(url, {
-      headers: {
-        'Authorization': `Discogs token=${DISCOGS_TOKEN}`,
-        'User-Agent': 'CogTurner/1.0',
+    const response = await fetchWithRetry(
+      `https://api.discogs.com/database/search?style=${encodeURIComponent(style)}&format=vinyl&per_page=100`,
+      {
+        headers: {
+          'Authorization': `Discogs token=${DISCOGS_TOKEN}`,
+          'User-Agent': 'CogTurner/1.0',
+        }
       }
-    })
+    )
 
     if (!response.ok) {
-      throw new Error(`Discogs API error: ${response.status}`)
+      throw new Error(`Discogs API error: ${response.status} ${response.statusText}`)
     }
 
     const data = await safeJsonParse(response)
@@ -155,36 +100,24 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
       .sort(() => 0.5 - Math.random())
       .slice(0, 20)
 
-    // Process records sequentially
-    const recordsWithDetails = []
-    for (const item of shuffled) {
-      await delay(RATE_LIMIT_DELAY)
-
-      const [details, lowestPrice] = await Promise.all([
-        fetchReleaseDetails(item.id),
-        fetchMarketplaceListings(item.id)
-      ])
-      
-      recordsWithDetails.push({
-        id: item.id,
-        artist: item.title.split(' - ')[0],
-        title: item.title.split(' - ')[1] || item.title,
-        style: style,
-        year: item.year || 0,
-        image: item.cover_image || '',
-        youtubeId: details?.videos?.[0]?.uri.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)?.[1] || null,
-        lowestPrice,
-        discogsUrl: `https://www.discogs.com/release/${item.id}`,
-        communityRating: details?.community?.rating?.average || 0,
-        haves: details?.community?.have || item.community?.have || 0,
-        wants: details?.community?.want || item.community?.want || 0,
-      })
-    }
-
-    return recordsWithDetails
+    // Transform the data to match our Record type
+    return shuffled.map((item: any) => ({
+      id: item.id,
+      artist: item.title.split(' - ')[0],
+      title: item.title.split(' - ')[1] || item.title,
+      style: style,
+      year: item.year || 0,
+      image: item.cover_image || '',
+      youtubeId: null,
+      lowestPrice: null,
+      discogsUrl: `https://www.discogs.com/release/${item.id}`,
+      communityRating: item.community?.rating?.average || 0,
+      haves: item.community?.have || 0,
+      wants: item.community?.want || 0,
+    }))
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    throw new Error(`Failed to fetch records: ${message}`)
+    console.error('Error in searchDiscogsRecords:', error)
+    throw error
   }
 }
 
@@ -194,18 +127,32 @@ export async function GET(request: Request) {
     const style = searchParams.get('style')
 
     if (!style) {
-      return NextResponse.json({ error: 'Style parameter is required' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Style parameter is required' }, 
+        { status: 400 }
+      )
     }
 
     const cacheKey = `${CACHE_KEY}_${style}`
     const now = Date.now()
 
+    // Check cache
     if (cache[cacheKey] && (now - cache[cacheKey].timestamp) < CACHE_DURATION) {
+      console.log('Returning cached data for style:', style)
       return NextResponse.json(cache[cacheKey].records)
     }
 
+    console.log('Fetching new data for style:', style)
     const records = await searchDiscogsRecords(style)
     
+    if (!Array.isArray(records) || records.length === 0) {
+      return NextResponse.json(
+        { error: 'No records found' },
+        { status: 404 }
+      )
+    }
+
+    // Update cache
     cache[cacheKey] = {
       timestamp: now,
       records
@@ -213,7 +160,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json(records)
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    console.error('Error in GET handler:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to fetch records' },
+      { status: 500 }
+    )
   }
 }
