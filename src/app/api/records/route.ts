@@ -12,6 +12,54 @@ type CacheData = {
 
 let cache: { [key: string]: CacheData } = {}
 
+async function fetchReleaseDetails(releaseId: number): Promise<any> {
+  const response = await fetch(
+    `https://api.discogs.com/releases/${releaseId}`,
+    {
+      headers: {
+        'Authorization': `Discogs token=${DISCOGS_TOKEN}`,
+        'User-Agent': 'CogTurner/1.0',
+      }
+    }
+  )
+
+  if (!response.ok) {
+    console.error(`Failed to fetch release details for ${releaseId}:`, response.statusText)
+    return null
+  }
+
+  return response.json()
+}
+
+async function fetchMarketplaceListings(releaseId: number): Promise<number | null> {
+  try {
+    const response = await fetch(
+      `https://api.discogs.com/marketplace/listings/release/${releaseId}?sort=price&sort_order=asc&limit=1`,
+      {
+        headers: {
+          'Authorization': `Discogs token=${DISCOGS_TOKEN}`,
+          'User-Agent': 'CogTurner/1.0',
+        }
+      }
+    )
+
+    if (!response.ok) {
+      console.error(`Failed to fetch marketplace listings for ${releaseId}:`, response.statusText)
+      return null
+    }
+
+    const data = await response.json()
+    // Get the price from the first (cheapest) listing if available
+    if (data.listings && data.listings.length > 0) {
+      return data.listings[0].price.value
+    }
+    return null
+  } catch (error) {
+    console.error(`Error fetching marketplace listings for ${releaseId}:`, error)
+    return null
+  }
+}
+
 async function searchDiscogsRecords(style: string): Promise<Record[]> {
   if (!DISCOGS_TOKEN) {
     throw new Error('Discogs token is not configured')
@@ -45,25 +93,38 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
       throw new Error('Invalid response from Discogs')
     }
 
-    // Randomly select 20 records from the results
-    const shuffled = data.results.sort(() => 0.5 - Math.random())
-    const selected = shuffled.slice(0, 20)
+    // Randomly select exactly 20 records from the results
+    const shuffled = data.results
+      .sort(() => 0.5 - Math.random())
+      .slice(0, 20)
 
-    // Transform the data to match our Record type
-    return selected.map((item: any) => ({
-      id: item.id,
-      artist: item.title.split(' - ')[0],
-      title: item.title.split(' - ')[1] || item.title,
-      style: style,
-      year: item.year || 0,
-      image: item.cover_image || '',
-      youtubeId: null,
-      lowestPrice: null,
-      discogsUrl: `https://www.discogs.com/release/${item.id}`,
-      communityRating: item.community?.rating?.average || 0,
-      haves: item.community?.have || 0,
-      wants: item.community?.want || 0,
-    }))
+    // Fetch detailed information for each record
+    const recordsWithDetails = await Promise.all(
+      shuffled.map(async (item: any) => {
+        // Fetch both release details and marketplace listings in parallel
+        const [details, lowestPrice] = await Promise.all([
+          fetchReleaseDetails(item.id),
+          fetchMarketplaceListings(item.id)
+        ])
+        
+        return {
+          id: item.id,
+          artist: item.title.split(' - ')[0],
+          title: item.title.split(' - ')[1] || item.title,
+          style: style,
+          year: item.year || 0,
+          image: item.cover_image || '',
+          youtubeId: details?.videos?.[0]?.uri.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)?.[1] || null,
+          lowestPrice,
+          discogsUrl: `https://www.discogs.com/release/${item.id}`,
+          communityRating: details?.community?.rating?.average || 0,
+          haves: details?.community?.have || item.community?.have || 0,
+          wants: details?.community?.want || item.community?.want || 0,
+        }
+      })
+    )
+
+    return recordsWithDetails
   } catch (error) {
     console.error('Error in searchDiscogsRecords:', error)
     throw error

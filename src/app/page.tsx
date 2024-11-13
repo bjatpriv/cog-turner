@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Youtube, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react"
@@ -42,6 +42,18 @@ export default function MusicRecordsGrid() {
 
   const handleNext = () => {
     setSelectedRecordIndex((prev) => (prev === null || prev === records.length - 1) ? 0 : prev + 1)
+  }
+
+  // Helper function to format price
+  const formatPrice = (price: number | null): string => {
+    if (price === null || typeof price !== 'number') return 'N/A'
+    return `€${price.toFixed(2)}`
+  }
+
+  // Helper function to format rating
+  const formatRating = (rating: number | null): string => {
+    if (rating === null || typeof rating !== 'number') return 'N/A'
+    return `${rating.toFixed(1)}/5`
   }
 
   return (
@@ -91,8 +103,8 @@ export default function MusicRecordsGrid() {
       )}
 
       {selectedStyle && !isLoading && !error && records.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {records.map((record, index) => (
+        <div className="grid grid-cols-5 gap-4 max-w-[1400px] mx-auto">
+          {records.slice(0, 20).map((record, index) => (
             <Card 
               key={record.id} 
               className="overflow-hidden group cursor-pointer"
@@ -104,17 +116,19 @@ export default function MusicRecordsGrid() {
                   alt={record.title}
                   width={200}
                   height={200}
-                  className="w-full h-auto"
+                  className="w-full h-auto aspect-square object-cover"
                 />
                 <div className="p-2">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <h2 className="text-xs font-semibold truncate">{record.artist}</h2>
                       <p className="text-xs text-gray-600 truncate">{record.title}</p>
-                      <p className="text-[10px] text-gray-500">{record.year} • {record.style}</p>
-                      {record.lowestPrice && (
-                        <p className="text-[10px] text-gray-500">From €{record.lowestPrice.toFixed(2)}</p>
-                      )}
+                      <p className="text-[10px] text-gray-500">
+                        {record.year} • {formatRating(record.communityRating)}
+                      </p>
+                      <p className="text-[10px] text-gray-500">
+                        From {formatPrice(record.lowestPrice)}
+                      </p>
                     </div>
                     {record.youtubeId && (
                       <Youtube className="w-6 h-6 text-black" />
@@ -173,11 +187,11 @@ export default function MusicRecordsGrid() {
                       </div>
                       <div>
                         <p className="font-semibold text-gray-500">Price:</p>
-                        <p>{records[selectedRecordIndex].lowestPrice ? `€${records[selectedRecordIndex].lowestPrice.toFixed(2)}` : 'N/A'}</p>
+                        <p>{formatPrice(records[selectedRecordIndex].lowestPrice)}</p>
                       </div>
                       <div>
                         <p className="font-semibold text-gray-500">Rating:</p>
-                        <p>{records[selectedRecordIndex].communityRating.toFixed(1)}/5</p>
+                        <p>{formatRating(records[selectedRecordIndex].communityRating)}</p>
                       </div>
                       <div>
                         <p className="font-semibold text-gray-500">Haves:</p>
