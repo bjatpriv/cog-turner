@@ -63,8 +63,10 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 0): P
 
     return response
   } catch (error) {
-    console.error('Error in fetchWithRetry:', error)
-    throw error
+    if (error instanceof Error) {
+      throw new Error(`Network error: ${error.message}`)
+    }
+    throw new Error('Unknown network error')
   }
 }
 
@@ -81,11 +83,14 @@ async function fetchReleaseDetails(releaseId: number): Promise<DiscogsRelease | 
     )
 
     if (!response.ok) {
-      console.error(`Failed to fetch release details for ${releaseId}:`, response.statusText)
       return null
     }
 
     const data = await safeJsonParse(response)
+    if (!data) {
+      return null
+    }
+
     return data
   } catch (error) {
     console.error(`Error fetching release details for ${releaseId}:`, error)
@@ -106,15 +111,15 @@ async function fetchMarketplaceListings(releaseId: number): Promise<number | nul
     )
 
     if (!response.ok) {
-      console.error(`Failed to fetch marketplace listings for ${releaseId}:`, response.statusText)
       return null
     }
 
     const data = await safeJsonParse(response)
-    if (data?.listings?.length > 0) {
-      return data.listings[0].price.value
+    if (!data?.listings?.length) {
+      return null
     }
-    return null
+
+    return data.listings[0].price.value || null
   } catch (error) {
     console.error(`Error fetching marketplace listings for ${releaseId}:`, error)
     return null
@@ -127,7 +132,6 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
   }
 
   const url = `https://api.discogs.com/database/search?style=${encodeURIComponent(style)}&format=vinyl&per_page=100`
-  console.log('Fetching from Discogs:', url)
 
   try {
     const response = await fetchWithRetry(url, {
@@ -138,23 +142,22 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
     })
 
     if (!response.ok) {
-      throw new Error(`Discogs API error: ${response.status} ${response.statusText}`)
+      throw new Error(`Discogs API error: ${response.status}`)
     }
 
     const data = await safeJsonParse(response)
-    if (!data || !data.results || !Array.isArray(data.results)) {
-      throw new Error('Invalid response from Discogs')
+    if (!data?.results?.length) {
+      throw new Error('No results found')
     }
 
-    // Randomly select exactly 20 records from the results
+    // Randomly select exactly 20 records
     const shuffled = data.results
       .sort(() => 0.5 - Math.random())
       .slice(0, 20)
 
-    // Process records sequentially to avoid rate limiting
+    // Process records sequentially
     const recordsWithDetails = []
     for (const item of shuffled) {
-      // Add delay between each record processing
       await delay(RATE_LIMIT_DELAY)
 
       const [details, lowestPrice] = await Promise.all([
@@ -180,8 +183,8 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
 
     return recordsWithDetails
   } catch (error) {
-    console.error('Error in searchDiscogsRecords:', error)
-    throw error
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    throw new Error(`Failed to fetch records: ${message}`)
   }
 }
 
@@ -197,16 +200,12 @@ export async function GET(request: Request) {
     const cacheKey = `${CACHE_KEY}_${style}`
     const now = Date.now()
 
-    // Check cache
     if (cache[cacheKey] && (now - cache[cacheKey].timestamp) < CACHE_DURATION) {
-      console.log('Returning cached data for style:', style)
       return NextResponse.json(cache[cacheKey].records)
     }
 
-    console.log('Fetching new data for style:', style)
     const records = await searchDiscogsRecords(style)
     
-    // Update cache
     cache[cacheKey] = {
       timestamp: now,
       records
@@ -214,10 +213,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(records)
   } catch (error) {
-    console.error('Error in GET handler:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch records' }, 
-      { status: 500 }
-    )
+    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

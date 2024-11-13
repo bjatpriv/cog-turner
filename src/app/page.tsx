@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useRecords } from '@/hooks/useRecords'
 
+// Define available styles
 const electronicStyles = [
   'House', 'Techno', 'Experimental', 'Ambient', 'Synth-pop', 'Electro', 
   'Trance', 'Downtempo', 'Disco', 'Deep House', 'Tech House'
@@ -72,16 +73,23 @@ export default function MusicRecordsGrid() {
         </p>
       </header>
 
-      <Select onValueChange={setSelectedStyle} value={selectedStyle || undefined}>
-        <SelectTrigger className="w-[180px] mb-4">
-          <SelectValue placeholder="Select Style" />
-        </SelectTrigger>
-        <SelectContent>
-          {electronicStyles.map((style) => (
-            <SelectItem key={style} value={style}>{style}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="w-[180px] mb-4">
+        <Select 
+          onValueChange={(value) => setSelectedStyle(value)} 
+          value={selectedStyle || undefined}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select Style" />
+          </SelectTrigger>
+          <SelectContent>
+            {electronicStyles.map((style) => (
+              <SelectItem key={style} value={style}>
+                {style}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {isLoading && (
         <div className="text-center py-8">
@@ -100,8 +108,8 @@ export default function MusicRecordsGrid() {
       )}
 
       {selectedStyle && !isLoading && !error && records.length > 0 && (
-        <div className="grid grid-cols-5 gap-4 max-w-[1400px] mx-auto">
-          {records.slice(0, 20).map((record, index) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          {records.map((record, index) => (
             <Card 
               key={record.id} 
               className="overflow-hidden group cursor-pointer"
