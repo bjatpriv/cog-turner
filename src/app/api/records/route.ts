@@ -10,11 +10,14 @@ type CacheData = {
   records: Record[];
 }
 
-interface DiscogsResult {
+interface DiscogsRelease {
   id: number;
   title: string;
   year: number;
   cover_image: string;
+  videos?: Array<{
+    uri: string;
+  }>;
   community?: {
     rating?: {
       average: number;
@@ -26,7 +29,7 @@ interface DiscogsResult {
 
 const cache: { [key: string]: CacheData } = {}
 
-async function fetchReleaseDetails(releaseId: number): Promise<Record | null> {
+async function fetchReleaseDetails(releaseId: number): Promise<DiscogsRelease | null> {
   const response = await fetch(
     `https://api.discogs.com/releases/${releaseId}`,
     {
@@ -114,7 +117,7 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
 
     // Fetch detailed information for each record
     const recordsWithDetails = await Promise.all(
-      shuffled.map(async (item: any) => {
+      shuffled.map(async (item: DiscogsRelease) => {
         // Fetch both release details and marketplace listings in parallel
         const [details, lowestPrice] = await Promise.all([
           fetchReleaseDetails(item.id),
