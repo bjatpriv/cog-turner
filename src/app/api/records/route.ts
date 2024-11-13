@@ -33,6 +33,16 @@ const cache: { [key: string]: CacheData } = {}
 // Helper function to add delay between requests
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+// Helper function to safely parse JSON
+async function safeJsonParse(response: Response) {
+  try {
+    return await response.json()
+  } catch (error) {
+    console.error('Failed to parse JSON response:', error)
+    return null
+  }
+}
+
 // Helper function to handle rate-limited requests with retry
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3): Promise<Response> {
   for (let i = 0; i < retries; i++) {
@@ -74,7 +84,7 @@ async function fetchReleaseDetails(releaseId: number): Promise<DiscogsRelease | 
       return null
     }
 
-    const data = await response.json()
+    const data = await safeJsonParse(response)
     return data
   } catch (error) {
     console.error(`Error fetching release details for ${releaseId}:`, error)
@@ -99,8 +109,8 @@ async function fetchMarketplaceListings(releaseId: number): Promise<number | nul
       return null
     }
 
-    const data = await response.json()
-    if (data.listings && data.listings.length > 0) {
+    const data = await safeJsonParse(response)
+    if (data?.listings?.length > 0) {
       return data.listings[0].price.value
     }
     return null
@@ -127,19 +137,11 @@ async function searchDiscogsRecords(style: string): Promise<Record[]> {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Discogs API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText
-      })
       throw new Error(`Discogs API error: ${response.status} ${response.statusText}`)
     }
 
-    const data = await response.json()
-    
-    if (!data.results || !Array.isArray(data.results)) {
-      console.error('Unexpected Discogs response:', data)
+    const data = await safeJsonParse(response)
+    if (!data || !data.results || !Array.isArray(data.results)) {
       throw new Error('Invalid response from Discogs')
     }
 
